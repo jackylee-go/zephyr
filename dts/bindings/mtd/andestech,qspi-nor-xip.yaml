@@ -16,3 +16,7 @@ properties:
     type: int
     description: |
       The size in bytes.
+
+  spi-max-frequency:
+    type: int
+    description: Maximum clock frequency of device's SPI interface in Hz.

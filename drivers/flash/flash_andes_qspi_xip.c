@@ -15,6 +15,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/cache.h>
+#include <zephyr/drivers/clock_control.h>
 #include <zephyr/drivers/flash/andes_flash_xip_api_ex.h>
 #include <zephyr/drivers/flash.h>
 #include <zephyr/init.h>
@@ -94,6 +95,10 @@ struct flash_andes_qspi_xip_config {
 	struct atcspi200_regs *regs;
 	uint32_t mapped_base;
 	uint32_t flash_size;
+	uint32_t spi_max_freq;
+	uint32_t base_clk;
+	const struct device *clock_dev;
+	clock_control_subsys_t clock_subsys;
 	bool is_xip;
 #ifdef CONFIG_FLASH_PAGE_LAYOUT
 	struct flash_pages_layout layout;
@@ -470,9 +475,43 @@ static int flash_andes_qspi_xip_erase(const struct device *dev, off_t addr, size
 static int flash_andes_qspi_xip_init(const struct device *dev)
 {
 	const struct flash_andes_qspi_xip_config *config = dev->config;
+	uint32_t base_clk = 0;
+	int err;
 
 	if (!config->is_xip) {
 		return -EINVAL;
+	}
+
+	if (config->spi_max_freq != 0U) {
+		if (config->base_clk != 0U) {
+			base_clk = config->base_clk;
+		} else if (config->clock_dev) {
+			if (!device_is_ready(config->clock_dev)) {
+				return -EINVAL;
+			}
+
+			err = clock_control_on(config->clock_dev, config->clock_subsys);
+			if (err != 0 && err != -EALREADY && err != -ENOSYS) {
+				return err;
+			}
+
+			if (clock_control_get_rate(config->clock_dev, config->clock_subsys,
+						   &base_clk) != 0) {
+				return -EINVAL;
+			}
+		}
+		if (base_clk != 0U) {
+			struct atcspi200_regs *regs = config->regs;
+			uint32_t clk_div;
+
+			/* Set the divisor for SPI interface sclk */
+			clk_div = (base_clk / 2 + config->spi_max_freq - 1) / config->spi_max_freq
+				- 1;
+			if (clk_div >= TIMIN_SCLK_DIV_MSK) {
+				clk_div = TIMIN_SCLK_DIV_MSK;
+			}
+			regs->IFTIM = ((regs->IFTIM & ~TIMIN_SCLK_DIV_MSK) | clk_div);
+		}
 	}
 
 	return 0;
@@ -752,11 +791,53 @@ static DEVICE_API(flash, flash_andes_qspi_xip_api) = {
 		},                                                         \
 		))
 
+#define DT_DRV_PINST(inst) \
+	DT_PARENT(DT_INST(inst, DT_DRV_COMPAT))
+#define DT_PINST_NODE_HAS_PROP(inst, prop) \
+	DT_NODE_HAS_PROP(DT_DRV_PINST(inst), prop)
+#define DT_PINST_PROP(inst, prop) \
+	DT_PROP(DT_DRV_PINST(inst), prop)
+#define DT_PINST_CLOCKS_CTLR_BY_IDX(inst, idx) \
+	DT_CLOCKS_CTLR_BY_IDX(DT_DRV_PINST(inst), idx)
+#define DT_PINST_PHA_BY_IDX(inst, pha, idx, cell) \
+	DT_PHA_BY_IDX(DT_DRV_PINST(inst), pha, idx, cell)
+
+#define PARENT_FREQUENCY_AND_CLOCKS_PROP(n)                                                      \
+	COND_CODE_1(                                                                             \
+		DT_PINST_NODE_HAS_PROP(n, clock_frequency), (                                    \
+			.base_clk = DT_PINST_PROP(n, clock_frequency),                           \
+			.clock_dev = NULL,                                                       \
+			.clock_subsys = NULL,                                                    \
+		), (                                                                             \
+			COND_CODE_1(                                                             \
+				DT_PINST_NODE_HAS_PROP(n, clocks), (                             \
+					.base_clk = 0,                                           \
+					.clock_dev =                                             \
+						DEVICE_DT_GET(DT_PINST_CLOCKS_CTLR_BY_IDX(n, 0)),\
+					.clock_subsys = (clock_control_subsys_t)                 \
+						DT_PINST_PHA_BY_IDX(n, clocks, 0, clkid),        \
+				), (                                                             \
+					.base_clk = 0,                                           \
+					.clock_dev = NULL,                                       \
+					.clock_subsys = NULL,                                    \
+				)                                                                \
+			)                                                                        \
+		)                                                                                \
+	)
+
 #define FLASH_ANDES_QSPI_XIP_INIT(n)                                                               \
 	static const struct flash_andes_qspi_xip_config flash_andes_qspi_xip_config_##n = {        \
 		.regs = (struct atcspi200_regs *)DT_REG_ADDR(DT_INST_BUS(n)),                      \
 		.mapped_base = DT_REG_ADDR_BY_IDX(DT_INST_BUS(n), 1),                              \
 		.parameters = {.write_block_size = 1, .erase_value = 0xff},                        \
+		COND_CODE_1(                                                                       \
+			DT_INST_NODE_HAS_PROP(n, spi_max_frequency), (                             \
+				.spi_max_freq = DT_INST_PROP(n, spi_max_frequency),                \
+			), (                                                                       \
+				.spi_max_freq = 0,                                                 \
+			)                                                                          \
+		)                                                                                  \
+		PARENT_FREQUENCY_AND_CLOCKS_PROP(n)                                                \
 		.is_xip = IS_XIP(DT_DRV_INST(n)),                                                  \
 		.flash_size = DT_INST_PROP(n, size),                                               \
 		LAYOUT_PAGES_PROP(n)};                                                             \
