@@ -3,6 +3,14 @@
 
 if SOC_EGIS_ET171
 
+config CLOCK_CONTROL
+	default y
+	depends on DT_HAS_EGIS_ET171_CLOCK_ENABLED
+
+config TIMER_READS_ITS_FREQUENCY_AT_RUNTIME
+	default y
+	depends on DT_HAS_EGIS_ET171_CLOCK_ENABLED
+
 config SYS_CLOCK_TICKS_PER_SEC
 	default 100 if (!ICACHE || XIP)
 

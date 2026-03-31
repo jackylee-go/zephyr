@@ -6,6 +6,7 @@
 
 /dts-v1/;
 #include <zephyr/dt-bindings/gpio/gpio.h>
+#include <zephyr/dt-bindings/clock/et171_clock.h>
 #include <mem.h>
 
 / {
@@ -88,6 +89,7 @@
 			reg-shift = <2>;
 			interrupts = <20 1>;
 			interrupt-parent = <&plic0>;
+			clocks = <&clock ET171_CLOCK_UART>;
 			status = "disabled";
 		};
 
@@ -163,7 +165,7 @@
 			dma-names = "tx", "rx";
 			#address-cells = <1>;
 			#size-cells = <0>;
-			clock-frequency = <66000000>;
+			clocks = <&clock ET171_CLOCK_SPIM1>;
 			status = "disabled";
 		};
 
@@ -178,7 +180,7 @@
 			dma-names = "tx", "rx";
 			#address-cells = <1>;
 			#size-cells = <0>;
-			clock-frequency = <66000000>;
+			clocks = <&clock ET171_CLOCK_SPIM2>;
 			status = "disabled";
 		};
 
@@ -194,7 +196,13 @@
 			dma-names = "tx", "rx";
 			#address-cells = <1>;
 			#size-cells = <0>;
-			clock-frequency = <66000000>;
+			clocks = <&clock ET171_CLOCK_SPIM3>;
+			status = "disabled";
+		};
+
+		clock: clock-controller {
+			compatible = "egis,et171-clock";
+			#clock-cells = <1>;
 			status = "disabled";
 		};
 	};

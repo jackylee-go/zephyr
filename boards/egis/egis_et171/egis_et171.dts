@@ -45,23 +45,18 @@
 		compatible = "soc-nv-flash";
 		reg = <0x80000000 DT_SIZE_K(1024)>;
 	};
-
-	clocks {
-		clk_mtimer: clk_mtimer {
-			compatible = "fixed-clock";
-			clock-frequency = <18037518>;
-			status = "disabled";
-		};
-	};
 };
 
 &plic0 {
 	status = "okay";
 };
 
+&clock {
+	status = "okay";
+};
+
 &uart0 {
 	status = "okay";
-	clock-frequency = <18037518>;
 	current-speed = <38400>;
 };
 
