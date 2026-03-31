@@ -197,5 +197,10 @@
 			clock-frequency = <66000000>;
 			status = "disabled";
 		};
+
+		pinctrl: pin-controller {
+			compatible = "egis,et171-pinctrl";
+			status = "disabled";
+		};
 	};
 };

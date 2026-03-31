@@ -7,6 +7,7 @@
 /dts-v1/;
 
 #include <egis/egis_et171.dtsi>
+#include <egis/egis_et171_pinctrl.dtsi>
 
 / {
 	model = "Egis ET171C";
@@ -56,6 +57,10 @@
 };
 
 &plic0 {
+	status = "okay";
+};
+
+&pinctrl {
 	status = "okay";
 };
 
